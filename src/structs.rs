@@ -351,9 +351,9 @@ impl CanonicalDeserialize for RevealMap {
     {
         let mut len_buf = [0u8; 8];
         r.read_exact(&mut len_buf)?;
-        let len = usize::from_le_bytes(len_buf);
+        let len = u64::from_le_bytes(len_buf);
 
-        if len != VIEWABLE_DATA_LEN {
+        if len != VIEWABLE_DATA_LEN as u64 {
             return Err(ark_serialize::SerializationError::InvalidData);
         }
 
