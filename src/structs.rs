@@ -333,7 +333,7 @@ impl CanonicalSerialize for RevealMap {
     where
         W: ark_serialize::Write,
     {
-        w.write_all(&VIEWABLE_DATA_LEN.to_le_bytes())?;
+        w.write_all(&(VIEWABLE_DATA_LEN as u64).to_le_bytes())?;
         let tmp: Vec<u8> = self.0.iter().map(|x| (*x) as u8).collect();
         w.write_all(&tmp[..])?;
         Ok(())

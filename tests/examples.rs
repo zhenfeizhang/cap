@@ -1839,9 +1839,9 @@ pub fn example_non_native_asset_transfer() {
 
 /// This tests shows how to generate and verify transfer notes transferring non
 /// native asset with an viewer policy on records' opening.
-///  1. simulate ledger state with two unspent records, one with a
-///     native asset used to pay fees
-///     and one with another asset with associated policy viewing policy.
+///  1. simulate ledger state with two unspent records, one with a native asset
+///     used to pay fees and one with another asset with associated policy
+///     viewing policy.
 ///  2. create a transfer note that spends the records by transferring the
 /// second record and     paying fee with native asset record.
 ///  3. simulate verifier node validating the transfer note
@@ -1952,9 +1952,8 @@ pub fn example_test_viewed_asset_transfer() {
 
 /// This tests shows how to generate and verify transfer notes transferring non
 /// native asset with an viewer policy viewing credential attributes.
-///  1. simulate ledger state with two unspent records, one with a
-///     native asset used to pay fees
-///     and one with another asset with associated policy
+///  1. simulate ledger state with two unspent records, one with a native asset
+///     used to pay fees and one with another asset with associated policy
 ///     viewing credential attributed.
 ///  2. create a transfer note that spends the records by transferring the
 /// second record and     paying fee with native asset record.
