@@ -344,7 +344,7 @@ impl<'a, C: CapConfig> TransferParamsBuilder<'a, C> {
     ) -> Self {
         assert_eq!(user_keypairs.len(), num_input);
         let tree_depth = Self::calculate_tree_depth(num_input, num_output, tree_depth);
-        let mut rng = ark_std::test_rng();
+        let mut rng = rand::rngs::StdRng::seed_from_u64(12345);
         let transfer_asset_def = NonNativeAssetDefinition::generate(&mut rng);
 
         Self {
