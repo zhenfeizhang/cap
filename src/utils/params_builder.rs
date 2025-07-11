@@ -905,10 +905,14 @@ impl<'a, C: CapConfig> TransferParamsBuilder<'a, C> {
 #[derive(Debug)]
 /// Struct containing the parameters needed to build a non-native asset
 pub struct NonNativeAssetDefinition<C: CapConfig> {
-    pub(crate) asset_def: AssetDefinition<C>,
-    pub(crate) viewer_keypair: ViewerKeyPair<C>,
-    pub(crate) minter_keypair: CredIssuerKeyPair<C>,
-    pub(crate) freezer_keypair: FreezerKeyPair<C>,
+    /// Asset definition
+    pub asset_def: AssetDefinition<C>,
+    /// Key pairs for the asset
+    pub viewer_keypair: ViewerKeyPair<C>,
+    /// Key pair for the minter
+    pub minter_keypair: CredIssuerKeyPair<C>,
+    /// Key pair for the freezer
+    pub freezer_keypair: FreezerKeyPair<C>,
 }
 
 impl<C: CapConfig> NonNativeAssetDefinition<C> {
