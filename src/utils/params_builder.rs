@@ -912,7 +912,8 @@ pub struct NonNativeAssetDefinition<C: CapConfig> {
 }
 
 impl<C: CapConfig> NonNativeAssetDefinition<C> {
-    fn generate<R: RngCore + CryptoRng>(rng: &mut R) -> Self {
+    /// generate a random non-native asset definition
+    pub fn generate<R: RngCore + CryptoRng>(rng: &mut R) -> Self {
         let viewer_keypair = ViewerKeyPair::generate(rng);
         let minter_keypair = CredIssuerKeyPair::generate(rng);
         let freezer_keypair = FreezerKeyPair::generate(rng);
