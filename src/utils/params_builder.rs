@@ -662,7 +662,8 @@ impl<'a, C: CapConfig> TransferParamsBuilder<'a, C> {
         self
     }
 
-    pub(crate) fn update_output_asset_def(
+    /// Update the asset definition of an output record at `index`
+    pub fn update_output_asset_def(
         mut self,
         index: usize,
         asset_def: AssetDefinition<C>,
