@@ -39,16 +39,11 @@ pub(crate) fn get_asset_def_in_transfer_txn<C: CapConfig>(
     if input_ros.is_empty() {
         return Err(TxnApiError::InternalError("Empty ROs!".to_string()));
     }
-    if !input_ros[0].asset_def.is_native() {
-        return Err(TxnApiError::InternalError(
-            "First input is not native!".to_string(),
-        ));
-    }
 
     // First input is always native asset
     // Other non-dummy inputs are all native (transfering or freezeing native
     // assets) or all the same non-native
-    for input in input_ros.iter().skip(1) {
+    for input in input_ros.iter() {
         if !input.asset_def.is_dummy() {
             return Ok(&input.asset_def); // native asset or txn asset
         }
