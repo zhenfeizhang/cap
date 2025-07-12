@@ -336,6 +336,87 @@ impl<C: CapConfig> TransferNote<C> {
 
         Ok((transfer_note, signing_keypair))
     }
+
+    /// Generates a transfer note without native asset type
+    /// * `rng` - Randomness generator
+    /// * `inputs` - Input record openings and all necessary witness
+    /// * `outputs` - Input record openings
+    /// * `proving_key` - Prover parameters
+    /// * `valid_until` - A projected future timestamp that the proof should be
+    ///   valid until, specifically for credential expiry
+    /// On success returns triple:
+    ///  Generated transfer note
+    ///  Receivers' memos
+    ///  Signature over produced receivers' memos
+    /// On error return TxnApIError
+    /// * `rng` - Randomness generator
+    /// * `inputs` - Input record openings and all necessary witness
+    /// * `outputs` - Input record openings
+    /// * `proving_key` - Prover parameters
+    /// * `valid_until` - A projected future timestamp that the proof should be
+    ///   valid until, specifically for credential expiry
+    /// On success returns triple:
+    ///  Generated transfer note
+    ///  Receivers' memos
+    ///  Signature over produced receivers' memos
+    /// On error return TxnApIError
+    pub fn generate_without_native<R: CryptoRng + RngCore>(
+        rng: &mut R,
+        inputs: Vec<TransferNoteInput<C>>,
+        outputs: &[RecordOpening<C>],
+        proving_key: &TransferProvingKey<C>,
+        valid_until: u64,
+        extra_proof_bound_data: Vec<u8>,
+    ) -> Result<(Self, schnorr::KeyPair<C::EmbeddedCurveParam>), TxnApiError> {
+        // 1. check input correctness
+        if inputs.is_empty() || outputs.is_empty() {
+            return Err(TxnApiError::InvalidParameter(
+                "input records and output records should NOT be empty".to_string(),
+            ));
+        }
+        let input_ros: Vec<&RecordOpening<C>> = inputs.iter().map(|input| &input.ro).collect();
+        let output_refs: Vec<&RecordOpening<C>> = outputs.iter().collect();
+        check_proving_key_consistency(proving_key, &inputs, outputs.len())?;
+        check_input_pub_keys(&inputs)?;
+        check_dummy_inputs(&input_ros)?;
+        check_non_native_asset_def(&input_ros, &output_refs)?;
+        let fee = check_non_native_balance(&input_ros, &output_refs)?;
+        check_unfrozen(&input_ros, &output_refs)?;
+        let merkle_root = check_and_get_roots(&inputs)?;
+        check_creds(&inputs, valid_until)?;
+
+        // 2. build public input and snark proof
+        let signing_keypair = schnorr::KeyPair::generate(rng);
+        let witness = TransferWitness::new_unchecked(rng, inputs, outputs)?;
+        let pub_inputs = TransferPublicInput::from_witness(&witness, valid_until)?;
+        check_distinct_input_nullifiers(&pub_inputs.input_nullifiers)?;
+
+        let proof = crate::proof::transfer::prove(
+            rng,
+            proving_key,
+            &witness,
+            &pub_inputs,
+            signing_keypair.ver_key_ref(),
+            &extra_proof_bound_data,
+        )?;
+
+        let transfer_note = TransferNote {
+            inputs_nullifiers: pub_inputs.input_nullifiers,
+            output_commitments: pub_inputs.output_commitments,
+            proof,
+            viewing_memo: pub_inputs.viewing_memo,
+            aux_info: AuxInfo {
+                merkle_root,
+                fee,
+                valid_until,
+                txn_memo_ver_key: signing_keypair.ver_key(),
+                extra_proof_bound_data,
+            },
+        };
+
+        Ok((transfer_note, signing_keypair))
+    }
+
     /// Anonymous transfer note verification method
     /// * `verifier_key` - Verification key
     /// * `merkle_root` - candidate state of the accumulator. It must match

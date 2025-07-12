@@ -663,11 +663,7 @@ impl<'a, C: CapConfig> TransferParamsBuilder<'a, C> {
     }
 
     /// Update the asset definition of an output record at `index`
-    pub fn update_output_asset_def(
-        mut self,
-        index: usize,
-        asset_def: AssetDefinition<C>,
-    ) -> Self {
+    pub fn update_output_asset_def(mut self, index: usize, asset_def: AssetDefinition<C>) -> Self {
         assert!(index < self.output_ros.len());
         self.output_ros[index].asset_def = asset_def;
         self
