@@ -45,7 +45,7 @@ pub(crate) trait TransactionGadgets<C: CapConfig> {
     /// * We assume that `amounts_in/out[0]` are with native asset type.
     fn preserve_balance(
         &mut self,
-        native_asset: Variable,
+        // native_asset: Variable,
         asset: Variable,
         fee: Variable,
         amounts_in: &[Variable],
@@ -78,7 +78,7 @@ pub(crate) trait TransactionGadgets<C: CapConfig> {
 impl<C: CapConfig> TransactionGadgets<C> for PlonkCircuit<C::ScalarField> {
     fn preserve_balance(
         &mut self,
-        native_asset: Variable,
+        // native_asset: Variable,
         asset: Variable,
         fee: Variable,
         amounts_in: &[Variable],
@@ -98,37 +98,39 @@ impl<C: CapConfig> TransactionGadgets<C> for PlonkCircuit<C::ScalarField> {
         let total_amounts_in = if amounts_in.len() == 1 {
             zero_var
         } else {
-            self.sum(&amounts_in[1..])?
+            self.sum(&amounts_in)?
         };
         let total_amounts_out = if amounts_out.len() == 1 {
             zero_var
         } else {
-            self.sum(&amounts_out[1..])?
+            self.sum(&amounts_out)?
         };
-        let amount_diff = self.sub(total_amounts_in, total_amounts_out)?;
-        let one = C::ScalarField::one();
-        let native_amount_diff = self.lc(
-            &[amounts_in[0], amounts_out[0], fee, zero_var],
-            &[one, -one, -one, one],
-        )?;
-        let same_asset = self.is_equal(native_asset, asset)?;
-        // enforce `same_asset` * (`amount_diff + native_amount_diff`) == 0 (i.e.,
-        // `amount_diff` + `native_amount_diff` == 0 when `same_asset == 1`)
-        self.mul_add_gate(
-            &[
-                same_asset.into(),
-                amount_diff,
-                same_asset.into(),
-                native_amount_diff,
-                zero_var,
-            ],
-            &[one, one],
-        )?;
-        // enforce `same_asset` * `amount_diff` = `amount_diff` (i.e., `amount_diff` ==
-        // 0 when `same_asset == 0`)
-        self.mul_gate(same_asset.into(), amount_diff, amount_diff)?;
-        // enforce `same_asset` * `native_amount_diff` = `native_amount_diff`,
-        self.mul_gate(same_asset.into(), native_amount_diff, native_amount_diff)?;
+        self.enforce_equal(total_amounts_in, total_amounts_out)?;
+
+        // let amount_diff = self.sub(total_amounts_in, total_amounts_out)?;
+        // let one = C::ScalarField::one();
+        // let native_amount_diff = self.lc(
+        //     &[amounts_in[0], amounts_out[0], fee, zero_var],
+        //     &[one, -one, -one, one],
+        // )?;
+        // let same_asset = self.is_equal(native_asset, asset)?;
+        // // enforce `same_asset` * (`amount_diff + native_amount_diff`) == 0 (i.e.,
+        // // `amount_diff` + `native_amount_diff` == 0 when `same_asset == 1`)
+        // self.mul_add_gate(
+        //     &[
+        //         same_asset.into(),
+        //         amount_diff,
+        //         same_asset.into(),
+        //         native_amount_diff,
+        //         zero_var,
+        //     ],
+        //     &[one, one],
+        // )?;
+        // // enforce `same_asset` * `amount_diff` = `amount_diff` (i.e., `amount_diff` ==
+        // // 0 when `same_asset == 0`)
+        // self.mul_gate(same_asset.into(), amount_diff, amount_diff)?;
+        // // enforce `same_asset` * `native_amount_diff` = `native_amount_diff`,
+        // self.mul_gate(same_asset.into(), native_amount_diff, native_amount_diff)?;
 
         Ok(total_amounts_in)
     }
@@ -211,7 +213,7 @@ mod tests {
     type EmbeddedCurveParam = <Config as CapConfig>::EmbeddedCurveParam;
 
     fn build_preserve_balance_circuit(
-        native_asset: F,
+        _native_asset: F,
         asset: F,
         fee: F,
         amounts_in: &[F],
@@ -219,7 +221,7 @@ mod tests {
     ) -> Result<PlonkCircuit<F>, CircuitError> {
         let expected_transfer_amount = amounts_in.iter().skip(1).fold(F::zero(), |acc, &x| acc + x);
         let mut circuit = PlonkCircuit::new_turbo_plonk();
-        let native_asset = circuit.create_variable(native_asset)?;
+        // let native_asset = circuit.create_variable(native_asset)?;
         let asset = circuit.create_variable(asset)?;
         let amounts_in: Vec<Variable> = amounts_in
             .iter()
@@ -232,7 +234,7 @@ mod tests {
         let fee = circuit.create_variable(fee)?;
         let transfer_amount = TransactionGadgets::<Config>::preserve_balance(
             &mut circuit,
-            native_asset,
+            // native_asset,
             asset,
             fee,
             &amounts_in,

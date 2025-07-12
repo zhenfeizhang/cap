@@ -319,8 +319,8 @@ pub(crate) struct InputSecret<'a, C: CapConfig> {
 pub struct TransferPublicInput<C: CapConfig> {
     /// record merkle tree root
     pub merkle_root: NodeValue<C::ScalarField>,
-    /// native asset code
-    pub native_asset_code: AssetCode<C>,
+    // /// native asset code
+    // pub native_asset_code: AssetCode<C>,
     /// expiry of credentials
     pub valid_until: u64,
     /// transaction fee to pay
@@ -429,7 +429,7 @@ impl<C: CapConfig> TransferPublicInput<C> {
 
         Ok(Self {
             merkle_root,
-            native_asset_code,
+            // native_asset_code,
             valid_until,
             fee,
             input_nullifiers,
@@ -443,7 +443,7 @@ impl<C: CapConfig> TransferPublicInput<C> {
     pub(crate) fn to_scalars(&self) -> Vec<C::ScalarField> {
         let mut result = vec![
             self.merkle_root.to_scalar(),
-            self.native_asset_code.0,
+            // self.native_asset_code.0,
             C::ScalarField::from(self.valid_until),
             C::ScalarField::from(self.fee.0),
         ];

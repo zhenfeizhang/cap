@@ -86,10 +86,10 @@ impl<C: CapConfig> TransferCircuit<C> {
             circuit.logic_or_gate(not_dummy_record, is_zero_amount)?;
 
             // The first input is with native asset code and is for txn fees.
-            if i == 0 {
-                circuit.enforce_equal(input.ro.asset_code, pub_input.native_asset_code)?;
-                input.ro.policy.enforce_dummy_policy::<C>(&mut circuit)?;
-            } else {
+            // if i == 0 {
+            //     circuit.enforce_equal(input.ro.asset_code, pub_input.native_asset_code)?;
+            //     input.ro.policy.enforce_dummy_policy::<C>(&mut circuit)?;
+            // } else {
                 // if asset type code is dummy, then policy must be dummy
                 let is_dummy_policy = input.ro.policy.is_dummy_policy::<C>(&mut circuit)?;
                 circuit.logic_or_gate(not_dummy_record, is_dummy_policy)?;
@@ -100,7 +100,7 @@ impl<C: CapConfig> TransferCircuit<C> {
                     .policy
                     .check_equal_policy::<C>(&mut circuit, &witness.policy)?;
                 circuit.logic_or_gate(is_dummy_record, is_equal_policy)?;
-            }
+            // }
 
             let (nullifier, root) = TransactionGadgets::<C>::prove_spend(
                 &mut circuit,
@@ -132,16 +132,23 @@ impl<C: CapConfig> TransferCircuit<C> {
         {
             // The output is not frozen.
             circuit.enforce_constant(output_ro.freeze_flag.into(), C::ScalarField::zero())?;
-            // The first output is with native asset code and is for txn fees
-            if i == 0 {
-                circuit.enforce_equal(output_ro.asset_code, pub_input.native_asset_code)?;
-                output_ro.policy.enforce_dummy_policy::<C>(&mut circuit)?;
-            } else {
-                circuit.enforce_equal(output_ro.asset_code, witness.asset_code)?;
-                output_ro
-                    .policy
-                    .enforce_equal_policy::<C>(&mut circuit, &witness.policy)?;
-            }
+
+            // Disable this check so we can pay fees with non-native assets
+            // // The first output is with native asset code and is for txn fees
+            // if i == 0 {
+            //     circuit.enforce_equal(output_ro.asset_code, pub_input.native_asset_code)?;
+            //     output_ro.policy.enforce_dummy_policy::<C>(&mut circuit)?;
+            // } else {
+            //     circuit.enforce_equal(output_ro.asset_code, witness.asset_code)?;
+            //     output_ro
+            //         .policy
+            //         .enforce_equal_policy::<C>(&mut circuit, &witness.policy)?;
+            // }
+
+            circuit.enforce_equal(output_ro.asset_code, witness.asset_code)?;
+            output_ro
+                .policy
+                .enforce_equal_policy::<C>(&mut circuit, &witness.policy)?;
 
             // commitment
             let rc_out = output_ro.compute_record_commitment::<C>(&mut circuit)?;
@@ -169,7 +176,7 @@ impl<C: CapConfig> TransferCircuit<C> {
 
         let transfer_amount = TransactionGadgets::<C>::preserve_balance(
             &mut circuit,
-            pub_input.native_asset_code,
+            // pub_input.native_asset_code,
             witness.asset_code,
             pub_input.fee,
             &amounts_in,
@@ -328,7 +335,7 @@ impl TransferWitnessVar {
 #[derive(Debug)]
 pub(crate) struct TransferPubInputVar {
     pub(crate) root: Variable,
-    pub(crate) native_asset_code: Variable,
+    // pub(crate) native_asset_code: Variable,
     pub(crate) valid_until: Variable,
     pub(crate) fee: Variable,
     pub(crate) input_nullifiers: Vec<Variable>,
@@ -343,7 +350,7 @@ impl TransferPubInputVar {
         pub_input: &TransferPublicInput<C>,
     ) -> Result<Self, CircuitError> {
         let root = circuit.create_public_variable(pub_input.merkle_root.to_scalar())?;
-        let native_asset_code = circuit.create_public_variable(pub_input.native_asset_code.0)?;
+        // let native_asset_code = circuit.create_public_variable(pub_input.native_asset_code.0)?;
         let valid_until =
             circuit.create_public_variable(C::ScalarField::from(pub_input.valid_until))?;
         let fee = circuit.create_public_variable(C::ScalarField::from(pub_input.fee.0))?;
@@ -361,7 +368,7 @@ impl TransferPubInputVar {
         viewing_memo.set_public::<C>(circuit)?;
         Ok(Self {
             root,
-            native_asset_code,
+            // native_asset_code,
             valid_until,
             fee,
             input_nullifiers,
@@ -427,13 +434,13 @@ mod tests {
     fn test_pub_input_to_scalars_order_consistency() {
         let rng = &mut ark_std::test_rng();
         let mut input_ros = vec![RecordOpening::<Config>::rand_for_test(rng); 5];
-        input_ros[0].asset_def = AssetDefinition::native();
+        // input_ros[0].asset_def = AssetDefinition::native();
         let output_ros = vec![RecordOpening::rand_for_test(rng); 4];
         let input_creds = vec![ExpirableCredential::dummy_unexpired().unwrap(); 5];
         let randomizer = Fj::rand(rng);
         let pub_input = TransferPublicInput {
             merkle_root: NodeValue::from_scalar(F::from(10u8)),
-            native_asset_code: AssetCode::native(),
+            // native_asset_code: AssetCode::native(),
             valid_until: 123u64,
             fee: Amount::from(8u64),
             input_nullifiers: vec![Nullifier(F::from(2u8)); 5],
