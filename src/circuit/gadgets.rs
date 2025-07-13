@@ -29,25 +29,14 @@ pub(crate) enum Spender {
 pub(crate) trait TransactionGadgets<C: CapConfig> {
     /// Add constraints that enforces the balance between inputs and outputs.
     /// Return the input transfer amount (which excludes the fee input amount).
-    /// In case `asset != native_asset`, enforces
-    ///   * `amounts_in[0] == amounts_out[0] + fee`
-    ///   * `sum_{i=2..n} amounts_in[i] == sum_{i=2..m} amounts_out[i]`
-    ///
-    /// In case `asset == native asset`, enforces
-    ///   * `sum_{i=1..n} amounts_in[i] == fee + sum_{i=1..m} amounts_out[i]`
+    /// Enforces
+    ///   * `sum_{i=0..n} amounts_in[i] == sum_{i=0..m} amounts_out[i]`
     ///
     /// The input parameters are:
-    /// * `naive_asset` - native asset code variable
-    /// * `asset` - asset code variable
-    /// * `fee` - transaction fee variable
     /// * `amounts_in` - input amounts, **should be non-empty**
     /// * `amounts_out` - output amounts, **should be non-empty**
-    /// * We assume that `amounts_in/out[0]` are with native asset type.
     fn preserve_balance(
         &mut self,
-        // native_asset: Variable,
-        asset: Variable,
-        fee: Variable,
         amounts_in: &[Variable],
         amounts_out: &[Variable],
     ) -> Result<Variable, CircuitError>;
@@ -78,12 +67,11 @@ pub(crate) trait TransactionGadgets<C: CapConfig> {
 impl<C: CapConfig> TransactionGadgets<C> for PlonkCircuit<C::ScalarField> {
     fn preserve_balance(
         &mut self,
-        // native_asset: Variable,
-        asset: Variable,
-        fee: Variable,
         amounts_in: &[Variable],
         amounts_out: &[Variable],
     ) -> Result<Variable, CircuitError> {
+        // FIXME(ZZ): This code is not sound.
+        // We need to constraint all inputs and outputs are non-negative.
         if amounts_in.is_empty() {
             return Err(CircuitError::InternalError(
                 "amounts_in is empty".to_string(),
@@ -94,43 +82,9 @@ impl<C: CapConfig> TransactionGadgets<C> for PlonkCircuit<C::ScalarField> {
                 "amounts_out is empty".to_string(),
             ));
         }
-        let zero_var = self.zero();
-        let total_amounts_in = if amounts_in.len() == 1 {
-            zero_var
-        } else {
-            self.sum(&amounts_in)?
-        };
-        let total_amounts_out = if amounts_out.len() == 1 {
-            zero_var
-        } else {
-            self.sum(&amounts_out)?
-        };
+        let total_amounts_in = self.sum(&amounts_in)?;
+        let total_amounts_out = self.sum(&amounts_out)?;
         self.enforce_equal(total_amounts_in, total_amounts_out)?;
-
-        // let amount_diff = self.sub(total_amounts_in, total_amounts_out)?;
-        // let one = C::ScalarField::one();
-        // let native_amount_diff = self.lc(
-        //     &[amounts_in[0], amounts_out[0], fee, zero_var],
-        //     &[one, -one, -one, one],
-        // )?;
-        // let same_asset = self.is_equal(native_asset, asset)?;
-        // // enforce `same_asset` * (`amount_diff + native_amount_diff`) == 0 (i.e.,
-        // // `amount_diff` + `native_amount_diff` == 0 when `same_asset == 1`)
-        // self.mul_add_gate(
-        //     &[
-        //         same_asset.into(),
-        //         amount_diff,
-        //         same_asset.into(),
-        //         native_amount_diff,
-        //         zero_var,
-        //     ],
-        //     &[one, one],
-        // )?;
-        // // enforce `same_asset` * `amount_diff` = `amount_diff` (i.e., `amount_diff` ==
-        // // 0 when `same_asset == 0`)
-        // self.mul_gate(same_asset.into(), amount_diff, amount_diff)?;
-        // // enforce `same_asset` * `native_amount_diff` = `native_amount_diff`,
-        // self.mul_gate(same_asset.into(), native_amount_diff, native_amount_diff)?;
 
         Ok(total_amounts_in)
     }
@@ -201,6 +155,7 @@ mod tests {
         structs::{AssetPolicy, RecordCommitment, RecordOpening, RevealMap},
     };
     use ark_ff::{One, Zero};
+    use ark_std::UniformRand;
     use ark_std::{test_rng, vec::Vec};
     use jf_primitives::{
         circuit::merkle_tree::{gen_merkle_path_for_test, AccMemberWitnessVar},
@@ -208,21 +163,17 @@ mod tests {
     };
     use jf_relation::{errors::CircuitError, Circuit, PlonkCircuit, Variable};
     use jf_utils::fr_to_fq;
+    use rand::{Rng, RngCore};
 
     type F = <Config as CapConfig>::ScalarField;
     type EmbeddedCurveParam = <Config as CapConfig>::EmbeddedCurveParam;
 
     fn build_preserve_balance_circuit(
-        _native_asset: F,
-        asset: F,
-        fee: F,
         amounts_in: &[F],
         amounts_out: &[F],
     ) -> Result<PlonkCircuit<F>, CircuitError> {
-        let expected_transfer_amount = amounts_in.iter().skip(1).fold(F::zero(), |acc, &x| acc + x);
+        let expected_transfer_amount = amounts_in.iter().fold(F::zero(), |acc, &x| acc + x);
         let mut circuit = PlonkCircuit::new_turbo_plonk();
-        // let native_asset = circuit.create_variable(native_asset)?;
-        let asset = circuit.create_variable(asset)?;
         let amounts_in: Vec<Variable> = amounts_in
             .iter()
             .map(|&val| circuit.create_variable(val))
@@ -231,89 +182,57 @@ mod tests {
             .iter()
             .map(|&val| circuit.create_variable(val))
             .collect::<Result<Vec<_>, CircuitError>>()?;
-        let fee = circuit.create_variable(fee)?;
         let transfer_amount = TransactionGadgets::<Config>::preserve_balance(
             &mut circuit,
-            // native_asset,
-            asset,
-            fee,
             &amounts_in,
             &amounts_out,
         )?;
+
         assert_eq!(expected_transfer_amount, circuit.witness(transfer_amount)?);
         Ok(circuit)
     }
 
+    fn sample_amounts(
+        rng: &mut impl RngCore,
+        num_inputs: usize,
+        num_outputs: usize,
+        is_sound: bool,
+    ) -> (Vec<F>, Vec<F>) {
+        let amounts_in: Vec<F> = (0..num_inputs)
+            .map(|_| rng.gen_range(0..256).into())
+            .collect();
+        let mut amounts_out: Vec<F> = (0..num_outputs - 1)
+            .map(|_| rng.gen_range(0..256).into())
+            .collect();
+        let total_in: F = amounts_in.iter().sum();
+        let total_out: F = amounts_out.iter().sum();
+
+        amounts_out.push(total_in - total_out);
+
+        if !is_sound {
+            amounts_out[0] = amounts_out[0] + F::one(); // make it unsound
+        }
+
+        (amounts_in, amounts_out)
+    }
+
     #[test]
     fn test_preserve_balance() -> Result<(), CircuitError> {
-        let native_asset = F::from(59u32);
-        let asset1 = F::from(59u32);
-        let asset2 = F::from(179u32);
-        // amounts_in = (10, 9, 8, ..., 2)
-        let amounts_in: Vec<F> = (2..11).rev().map(|x| F::from(x as u32)).collect();
-        // amounts1_out = (2, 3, ..., 9)
-        let amounts1_out: Vec<F> = (2..10).map(|x| F::from(x as u32)).collect();
-        // amounts2_out = (1, 2, 3, ..., 9)
-        let amounts2_out: Vec<F> = (1..10).map(|x| F::from(x as u32)).collect();
-        // The happy path
-        // amounts_in.len()==1
-        let fee = F::from(5u32);
-        let circuit = build_preserve_balance_circuit(
-            native_asset,
-            asset1,
-            fee,
-            &amounts_in[..1],
-            &amounts1_out[..2],
-        )?; // 10 = 5 + 2 + 3
-        assert!(circuit.check_circuit_satisfiability(&[]).is_ok());
+        let rng = &mut test_rng();
 
-        // amounts_out.len()==1
-        let fee = F::from(17u32);
-        let circuit = build_preserve_balance_circuit(
-            native_asset,
-            asset1,
-            fee,
-            &amounts_in[..2],
-            &amounts1_out[..1],
-        )?; // 10 + 9 = 17 + 2
-        assert!(circuit.check_circuit_satisfiability(&[]).is_ok());
-
-        // amounts_in.len()==1 && amounts_out.len()==1
-        let fee = F::from(8u32);
-        let circuit = build_preserve_balance_circuit(
-            native_asset,
-            asset1,
-            fee,
-            &amounts_in[..1],
-            &amounts1_out[..1],
-        )?; // 10 = 8 + 2
-        assert!(circuit.check_circuit_satisfiability(&[]).is_ok());
-
-        // asset1 == native asset
-        let fee = F::from(10u32);
-        let circuit =
-            build_preserve_balance_circuit(native_asset, asset1, fee, &amounts_in, &amounts1_out)?;
-        assert!(circuit.check_circuit_satisfiability(&[]).is_ok());
-
-        // asset2 != native asset
-        let fee = F::from(9u32);
-        let circuit =
-            build_preserve_balance_circuit(native_asset, asset2, fee, &amounts_in, &amounts2_out)?;
-        assert!(circuit.check_circuit_satisfiability(&[]).is_ok());
-
-        // The error path
-        // `asset1 == native asset`
-        let fee = F::from(9u32);
-        let circuit =
-            build_preserve_balance_circuit(native_asset, asset1, fee, &amounts_in, &amounts1_out)?; // 10+9+8+...+2 != 2+3+4+...+9+9
-        assert!(circuit.check_circuit_satisfiability(&[]).is_err());
-
-        // `asset1 != native asset`
-        let asset1 = F::from(69u32);
-        let fee = F::from(10u32);
-        let circuit =
-            build_preserve_balance_circuit(native_asset, asset1, fee, &amounts_in, &amounts1_out)?; // 9+8+...+2 != 3+4+...+9
-        assert!(circuit.check_circuit_satisfiability(&[]).is_err());
+        for num_in in [1, 2, 4] {
+            for num_out in [1, 2, 4] {
+                for is_sound in [true, false] {
+                    let (amounts_in, amounts_out) = sample_amounts(rng, num_in, num_out, is_sound);
+                    let circuit = build_preserve_balance_circuit(&amounts_in, &amounts_out)?;
+                    if is_sound {
+                        assert!(circuit.check_circuit_satisfiability(&[]).is_ok());
+                    } else {
+                        assert!(circuit.check_circuit_satisfiability(&[]).is_err());
+                    }
+                }
+            }
+        }
 
         Ok(())
     }

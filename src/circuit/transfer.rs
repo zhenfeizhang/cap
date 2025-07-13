@@ -90,16 +90,16 @@ impl<C: CapConfig> TransferCircuit<C> {
             //     circuit.enforce_equal(input.ro.asset_code, pub_input.native_asset_code)?;
             //     input.ro.policy.enforce_dummy_policy::<C>(&mut circuit)?;
             // } else {
-                // if asset type code is dummy, then policy must be dummy
-                let is_dummy_policy = input.ro.policy.is_dummy_policy::<C>(&mut circuit)?;
-                circuit.logic_or_gate(not_dummy_record, is_dummy_policy)?;
-                // if asset type code is not dummy, then policy must be the transfers note
-                // policy
-                let is_equal_policy = input
-                    .ro
-                    .policy
-                    .check_equal_policy::<C>(&mut circuit, &witness.policy)?;
-                circuit.logic_or_gate(is_dummy_record, is_equal_policy)?;
+            // if asset type code is dummy, then policy must be dummy
+            let is_dummy_policy = input.ro.policy.is_dummy_policy::<C>(&mut circuit)?;
+            circuit.logic_or_gate(not_dummy_record, is_dummy_policy)?;
+            // if asset type code is not dummy, then policy must be the transfers note
+            // policy
+            let is_equal_policy = input
+                .ro
+                .policy
+                .check_equal_policy::<C>(&mut circuit, &witness.policy)?;
+            circuit.logic_or_gate(is_dummy_record, is_equal_policy)?;
             // }
 
             let (nullifier, root) = TransactionGadgets::<C>::prove_spend(
@@ -174,14 +174,8 @@ impl<C: CapConfig> TransferCircuit<C> {
             .map(|ro| ro.amount)
             .collect();
 
-        let transfer_amount = TransactionGadgets::<C>::preserve_balance(
-            &mut circuit,
-            // pub_input.native_asset_code,
-            witness.asset_code,
-            pub_input.fee,
-            &amounts_in,
-            &amounts_out,
-        )?;
+        let transfer_amount =
+            TransactionGadgets::<C>::preserve_balance(&mut circuit, &amounts_in, &amounts_out)?;
 
         // Viewer memo is correctly constructed when `viewer_pk` is not null and
         // `transfer_amount > asset_policy.reveal_threshold`
