@@ -306,6 +306,7 @@ pub(crate) mod txn_helpers {
         BaseField, NodeValue,
     };
     use ark_serialize::CanonicalSerialize;
+    use ark_std::collections::HashSet;
     use ark_std::{
         collections::HashMap,
         format,
@@ -313,7 +314,6 @@ pub(crate) mod txn_helpers {
         vec,
         vec::Vec,
     };
-    use itertools::Itertools;
     use jf_primitives::merkle_tree::{MerkleLeaf, MerkleLeafProof, MerkleTree};
     use jf_utils::hash_to_field;
     use rand::{CryptoRng, RngCore};
@@ -321,7 +321,10 @@ pub(crate) mod txn_helpers {
     pub(crate) fn check_distinct_input_nullifiers(
         nullifiers: &[Nullifier],
     ) -> Result<(), TxnApiError> {
-        if nullifiers.iter().all_unique() {
+        if {
+            let mut set = HashSet::new();
+            nullifiers.iter().all(|n| set.insert(n))
+        } {
             Ok(())
         } else {
             Err(TxnApiError::InvalidParameter(
@@ -700,7 +703,7 @@ pub(crate) mod txn_helpers {
         Ok(fee)
     }
 
- #[cfg(feature = "transfer_non_native_fee")]
+    #[cfg(feature = "transfer_non_native_fee")]
     pub(crate) fn check_non_native_balance(
         inputs: &[&RecordOpening],
         outputs: &[&RecordOpening],
