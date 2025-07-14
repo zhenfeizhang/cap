@@ -445,7 +445,8 @@ impl<C: CapConfig> TransferPublicInput<C> {
     pub(crate) fn to_scalars(&self) -> Vec<C::ScalarField> {
         let mut result = vec![
             self.merkle_root.to_scalar(),
-            // self.native_asset_code.0,
+            #[cfg(not(feature = "transfer_non_native_fee"))]
+            self.native_asset_code.0,
             C::ScalarField::from(self.valid_until),
             C::ScalarField::from(self.fee.0),
         ];

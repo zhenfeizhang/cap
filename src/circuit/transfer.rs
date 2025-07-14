@@ -148,17 +148,20 @@ impl<C: CapConfig> TransferCircuit<C> {
             // The output is not frozen.
             circuit.enforce_constant(output_ro.freeze_flag.into(), C::ScalarField::zero())?;
 
-            // Disable this check so we can pay fees with non-native assets
-            // // The first output is with native asset code and is for txn fees
-            // if i == 0 {
-            //     circuit.enforce_equal(output_ro.asset_code, pub_input.native_asset_code)?;
-            //     output_ro.policy.enforce_dummy_policy::<C>(&mut circuit)?;
-            // } else {
-            //     circuit.enforce_equal(output_ro.asset_code, witness.asset_code)?;
-            //     output_ro
-            //         .policy
-            //         .enforce_equal_policy::<C>(&mut circuit, &witness.policy)?;
-            // }
+            #[cfg(not(feature = "transfer_non_native_fee"))]
+            {
+                // The first output is with native asset code and is for txn fees
+                // Disable this check so we can pay fees with non-native assets when `transfer_non_native_fee` feature is enabled
+                if i == 0 {
+                    circuit.enforce_equal(output_ro.asset_code, pub_input.native_asset_code)?;
+                    output_ro.policy.enforce_dummy_policy::<C>(&mut circuit)?;
+                } else {
+                    circuit.enforce_equal(output_ro.asset_code, witness.asset_code)?;
+                    output_ro
+                        .policy
+                        .enforce_equal_policy::<C>(&mut circuit, &witness.policy)?;
+                }
+            }
 
             circuit.enforce_equal(output_ro.asset_code, witness.asset_code)?;
             output_ro
