@@ -346,6 +346,7 @@ impl<C: CapConfig> TransferPublicInput<C> {
             .ok_or_else(|| TxnApiError::InvalidParameter("At least one input secret".to_string()))?
             .acc_member_witness
             .root;
+        
         // native asset code and transaction fee
         let native_asset_code = witness
             .output_record_openings

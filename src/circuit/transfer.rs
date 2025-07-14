@@ -163,10 +163,13 @@ impl<C: CapConfig> TransferCircuit<C> {
                 }
             }
 
-            circuit.enforce_equal(output_ro.asset_code, witness.asset_code)?;
-            output_ro
-                .policy
-                .enforce_equal_policy::<C>(&mut circuit, &witness.policy)?;
+            #[cfg(feature = "transfer_non_native_fee")]
+            {
+                circuit.enforce_equal(output_ro.asset_code, witness.asset_code)?;
+                output_ro
+                    .policy
+                    .enforce_equal_policy::<C>(&mut circuit, &witness.policy)?;
+            }
 
             // commitment
             let rc_out = output_ro.compute_record_commitment::<C>(&mut circuit)?;

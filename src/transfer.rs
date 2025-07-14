@@ -360,6 +360,7 @@ impl<C: CapConfig> TransferNote<C> {
     ///  Receivers' memos
     ///  Signature over produced receivers' memos
     /// On error return TxnApIError
+    #[cfg(feature = "transfer_non_native_fee")]
     pub fn generate_without_native<R: CryptoRng + RngCore>(
         rng: &mut R,
         inputs: Vec<TransferNoteInput<C>>,

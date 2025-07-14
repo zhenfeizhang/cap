@@ -60,6 +60,7 @@ pub(crate) trait TransactionGadgets<C: CapConfig> {
     /// The input parameters are:
     /// * `amounts_in` - input amounts, **should be non-empty**
     /// * `amounts_out` - output amounts, **should be non-empty**
+    #[cfg(feature = "transfer_non_native_fee")]
     fn preserve_non_native_balance(
         &mut self,
         amounts_in: &[Variable],
@@ -149,6 +150,7 @@ impl<C: CapConfig> TransactionGadgets<C> for PlonkCircuit<C::ScalarField> {
         Ok(total_amounts_in)
     }
 
+    #[cfg(feature = "transfer_non_native_fee")]
     fn preserve_non_native_balance(
         &mut self,
         amounts_in: &[Variable],
@@ -239,7 +241,6 @@ mod tests {
         structs::{AssetPolicy, RecordCommitment, RecordOpening, RevealMap},
     };
     use ark_ff::{One, Zero};
-    use ark_std::UniformRand;
     use ark_std::{test_rng, vec::Vec};
     use jf_primitives::{
         circuit::merkle_tree::{gen_merkle_path_for_test, AccMemberWitnessVar},
@@ -247,6 +248,9 @@ mod tests {
     };
     use jf_relation::{errors::CircuitError, Circuit, PlonkCircuit, Variable};
     use jf_utils::fr_to_fq;
+
+
+    #[cfg(feature = "transfer_non_native_fee")]
     use rand::{Rng, RngCore};
 
     type F = <Config as CapConfig>::ScalarField;
@@ -358,6 +362,7 @@ mod tests {
         Ok(())
     }
 
+    #[cfg(feature = "transfer_non_native_fee")]
     fn build_non_native_preserve_balance_circuit(
         amounts_in: &[F],
         amounts_out: &[F],
@@ -382,6 +387,7 @@ mod tests {
         Ok(circuit)
     }
 
+    #[cfg(feature = "transfer_non_native_fee")]
     fn sample_amounts(
         rng: &mut impl RngCore,
         num_inputs: usize,
@@ -407,6 +413,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "transfer_non_native_fee")]
     fn test_non_native_preserve_balance() -> Result<(), CircuitError> {
         let rng = &mut test_rng();
 

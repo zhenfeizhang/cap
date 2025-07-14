@@ -663,7 +663,11 @@ impl<'a, C: CapConfig> TransferParamsBuilder<'a, C> {
     }
 
     /// Update the asset definition of an output record at `index`
-    pub fn update_output_asset_def(mut self, index: usize, asset_def: AssetDefinition<C>) -> Self {
+    pub(crate) fn update_output_asset_def(
+        mut self,
+        index: usize,
+        asset_def: AssetDefinition<C>,
+    ) -> Self {
         assert!(index < self.output_ros.len());
         self.output_ros[index].asset_def = asset_def;
         self
@@ -900,7 +904,7 @@ impl<'a, C: CapConfig> TransferParamsBuilder<'a, C> {
 
 #[derive(Debug)]
 /// Struct containing the parameters needed to build a non-native asset
-pub struct NonNativeAssetDefinition<C: CapConfig> {
+pub(crate) struct NonNativeAssetDefinition<C: CapConfig> {
     /// Asset definition
     pub(crate) asset_def: AssetDefinition<C>,
     /// Key pairs for the asset
@@ -913,7 +917,7 @@ pub struct NonNativeAssetDefinition<C: CapConfig> {
 
 impl<C: CapConfig> NonNativeAssetDefinition<C> {
     /// generate a random non-native asset definition
-    pub fn generate<R: RngCore + CryptoRng>(rng: &mut R) -> Self {
+    pub(crate) fn generate<R: RngCore + CryptoRng>(rng: &mut R) -> Self {
         let viewer_keypair = ViewerKeyPair::generate(rng);
         let minter_keypair = CredIssuerKeyPair::generate(rng);
         let freezer_keypair = FreezerKeyPair::generate(rng);

@@ -422,6 +422,7 @@ pub(crate) mod txn_helpers {
 
         /// Check that all non-native assets are consistent across inputs and outputs
         /// Only used for transfers without assets
+        #[cfg(feature = "transfer_non_native_fee")]
         pub(crate) fn check_non_native_asset_def<C: CapConfig>(
             inputs: &[&RecordOpening<C>],
             outputs: &[&RecordOpening<C>],
@@ -694,6 +695,7 @@ pub(crate) mod txn_helpers {
         Ok(fee)
     }
 
+    #[cfg(feature = "transfer_non_native_fee")]
     pub(crate) fn check_non_native_balance<C: CapConfig>(
         inputs: &[&RecordOpening<C>],
         outputs: &[&RecordOpening<C>],
@@ -705,6 +707,7 @@ pub(crate) mod txn_helpers {
     /// requires that all inputs and outputs are of same asset code or being dummy
     /// returns the fee amount which is defined as the difference between
     /// sum of inputs[i].amount and the sum of outputs[i].amount.
+    #[cfg(feature = "transfer_non_native_fee")]
     pub(crate) fn derive_non_native_fee<C: CapConfig>(
         inputs: &[&RecordOpening<C>],
         outputs: &[&RecordOpening<C>],
