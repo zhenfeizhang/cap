@@ -18,6 +18,7 @@ use ark_ff::{FpParameters, PrimeField, SquareRootField};
 use ark_std::fmt::Debug;
 use jf_primitives::rescue::RescueParameter;
 use jf_relation::gadgets::ecc::SWToTEConParam;
+use serde_derive::{Deserialize, Serialize};
 
 use crate::structs::AssetCode;
 
@@ -68,9 +69,9 @@ pub trait CapConfig: Sized + Clone + Debug + PartialEq {
     }
 }
 
-/// A concrete instantation of `CapConfig`
+/// A concrete instantiation of `CapConfig`
 #[cfg(feature = "bn254")]
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 pub struct Config;
 
 #[cfg(feature = "bn254")]
@@ -83,9 +84,9 @@ impl CapConfig for Config {
     type EmbeddedCurveScalarField = ark_ed_on_bn254::Fr;
 }
 
-/// A concrete instantation of `CapConfig`
+/// A concrete instantiation of `CapConfig`
 #[cfg(feature = "bls12_377")]
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 pub struct Config;
 
 #[cfg(feature = "bls12_377")]
@@ -98,9 +99,9 @@ impl CapConfig for Config {
     type EmbeddedCurveScalarField = ark_ed_on_bls12_377::Fr;
 }
 
-/// A concrete instantation of `CapConfig`
+/// A concrete instantiation of `CapConfig`
 #[cfg(feature = "bls12_381")]
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 pub struct Config;
 
 #[cfg(feature = "bls12_381")]

@@ -202,7 +202,7 @@ use utils::txn_helpers::get_receiver_memos_digest;
 
 /// A transaction note contains a note of possibly various transaction types,
 /// including transfer, mint and freeze.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Derivative)]
 pub enum TransactionNote<C: CapConfig> {
     /// a transfer note
     Transfer(Box<TransferNote<C>>),

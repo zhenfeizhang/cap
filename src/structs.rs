@@ -1420,7 +1420,8 @@ impl<C: CapConfig> ViewableMemo<C> {
 #[derivative(
     Debug(bound = "C: CapConfig"),
     Clone(bound = "C: CapConfig"),
-    PartialEq(bound = "C: CapConfig")
+    PartialEq(bound = "C: CapConfig"),
+    Eq(bound = "C: CapConfig")
 )]
 pub struct ViewableData<C: CapConfig> {
     /// asset code of the associated policy
