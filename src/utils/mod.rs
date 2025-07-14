@@ -39,10 +39,30 @@ pub(crate) fn get_asset_def_in_transfer_txn(
     if input_ros.is_empty() {
         return Err(TxnApiError::InternalError("Empty ROs!".to_string()));
     }
-    if !input_ros[0].asset_def.is_native() {
-        return Err(TxnApiError::InternalError(
-            "First input is not native!".to_string(),
-        ));
+
+    #[cfg(not(feature = "transfer_non_native_fee"))]
+    {
+        if !input_ros[0].asset_def.is_native() {
+            return Err(TxnApiError::InternalError(
+                "First input is not native!".to_string(),
+            ));
+        }
+        // First input is always native asset
+        // Other non-dummy inputs are all native (transfering or freezeing native
+        // assets) or all the same non-native
+        for input in input_ros.iter().skip(1) {
+            if !input.asset_def.is_dummy() {
+                return Ok(&input.asset_def); // native asset or txn asset
+            }
+        }
+    }
+    #[cfg(feature = "transfer_non_native_fee")]
+    {
+        for input in input_ros.iter() {
+            if !input.asset_def.is_dummy() {
+                return Ok(&input.asset_def); // native asset or txn asset
+            }
+        }
     }
 
     // First input is always native asset
@@ -406,6 +426,33 @@ pub(crate) mod txn_helpers {
             Ok(())
         }
 
+        /// Check that all non-native assets are consistent across inputs and outputs
+        /// Only used for transfers without assets
+        #[cfg(feature = "transfer_non_native_fee")]
+        pub(crate) fn check_non_native_asset_def(
+            inputs: &[&RecordOpening],
+            outputs: &[&RecordOpening],
+        ) -> Result<(), TxnApiError> {
+            assert!(
+                !inputs.is_empty() && !outputs.is_empty(),
+                "Must provide at least 1 input record and 1 output record"
+            );
+            let assert_def = &inputs[0].asset_def;
+            let inconsistent_input_asset_def_flag = inputs.iter().skip(1).any(|input| {
+                input.asset_def != AssetDefinition::dummy() && input.asset_def != *assert_def
+            });
+            if inconsistent_input_asset_def_flag {
+                return Err(TxnApiError::InvalidParameter("The input records are not consistent with the asset definition of the records being transferred.".to_string()));
+            }
+            let inconsistent_output_asset_def_flag =
+                outputs.iter().any(|output| output.asset_def != *assert_def);
+            if inconsistent_output_asset_def_flag {
+                return Err(TxnApiError::InvalidParameter("The output records are not consistent with the asset definition of the records being transferred.".to_string()));
+            }
+
+            Ok(())
+        }
+
         /// Check the following:
         /// 1. the first record in inputs and outputs is of native asset def
         /// 2. the rest of records in inputs and outputs are of the same asset
@@ -651,6 +698,51 @@ pub(crate) mod txn_helpers {
         let fee = derive_fee(inputs, outputs)?;
         check_asset_amount(inputs, outputs, fee)?;
         Ok(fee)
+    }
+
+ #[cfg(feature = "transfer_non_native_fee")]
+    pub(crate) fn check_non_native_balance(
+        inputs: &[&RecordOpening],
+        outputs: &[&RecordOpening],
+    ) -> Result<Amount, TxnApiError> {
+        let fee = derive_non_native_fee(inputs, outputs)?;
+        Ok(fee)
+    }
+
+    /// requires that all inputs and outputs are of same asset code or being dummy
+    /// returns the fee amount which is defined as the difference between
+    /// sum of inputs[i].amount and the sum of outputs[i].amount.
+    #[cfg(feature = "transfer_non_native_fee")]
+    pub(crate) fn derive_non_native_fee(
+        inputs: &[&RecordOpening],
+        outputs: &[&RecordOpening],
+    ) -> Result<Amount, TxnApiError> {
+        if inputs.is_empty() {
+            return Err(TxnApiError::InvalidParameter(
+                "Inputs must be non-empty".to_string(),
+            ));
+        }
+
+        // the caller should have called `check_non_native_asset_def` before
+        // process the fee here
+        let input_fees = inputs
+            .iter()
+            .filter(|input| !input.asset_def.is_dummy())
+            .map(|input| input.amount.0 as u128)
+            .sum::<u128>();
+
+        let output_fees = outputs
+            .iter()
+            .map(|output| output.amount.0 as u128)
+            .sum::<u128>();
+
+        if input_fees < output_fees {
+            return Err(TxnApiError::InvalidParameter(
+                "Input fees must be greater than or equal to output fees".to_string(),
+            ));
+        }
+
+        Ok(Amount::from(input_fees - output_fees))
     }
 
     /// Compute fee amount from inputs and outputs;

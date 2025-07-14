@@ -319,6 +319,7 @@ pub(crate) struct InputSecret<'a> {
 /// Struct for the public input of a transfer witness
 pub(crate) struct TransferPublicInput {
     pub(crate) merkle_root: NodeValue<BaseField>,
+    #[cfg(not(feature = "transfer_non_native_fee"))]
     pub(crate) native_asset_code: AssetCode,
     pub(crate) valid_until: u64,
     pub(crate) fee: Amount,
@@ -423,6 +424,7 @@ impl TransferPublicInput {
 
         Ok(Self {
             merkle_root,
+            #[cfg(not(feature = "transfer_non_native_fee"))]
             native_asset_code,
             valid_until,
             fee,
@@ -437,6 +439,7 @@ impl TransferPublicInput {
     pub(crate) fn to_scalars(&self) -> Vec<BaseField> {
         let mut result = vec![
             self.merkle_root.to_scalar(),
+            #[cfg(not(feature = "transfer_non_native_fee"))]
             self.native_asset_code.0,
             BaseField::from(self.valid_until),
             BaseField::from(self.fee.0),

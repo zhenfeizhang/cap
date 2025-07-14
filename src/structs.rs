@@ -279,7 +279,7 @@ impl CanonicalSerialize for RevealMap {
     where
         W: ark_serialize::Write,
     {
-        w.write_all(&AUDIT_DATA_LEN.to_le_bytes())?;
+        w.write_all(&(AUDIT_DATA_LEN as u64).to_le_bytes())?;
         let tmp: Vec<u8> = self.0.iter().map(|x| (*x) as u8).collect();
         w.write_all(&tmp[..])?;
         Ok(())
@@ -297,9 +297,9 @@ impl CanonicalDeserialize for RevealMap {
     {
         let mut len_buf = [0u8; 8];
         r.read_exact(&mut len_buf)?;
-        let len = usize::from_le_bytes(len_buf);
+        let len = u64::from_le_bytes(len_buf);
 
-        if len != AUDIT_DATA_LEN {
+        if len != AUDIT_DATA_LEN as u64 {
             return Err(ark_serialize::SerializationError::InvalidData);
         }
 

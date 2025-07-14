@@ -55,6 +55,21 @@ pub(crate) trait TransactionGadgets {
         amounts_out: &[Variable],
     ) -> Result<Variable, PlonkError>;
 
+    /// Add constraints that enforces the balance between inputs and outputs.
+    /// Return the input transfer amount (which excludes the fee input amount).
+    /// Enforces
+    ///   * `sum_{i=0..n} amounts_in[i] == sum_{i=0..m} amounts_out[i]`
+    ///
+    /// The input parameters are:
+    /// * `amounts_in` - input amounts, **should be non-empty**
+    /// * `amounts_out` - output amounts, **should be non-empty**
+    #[cfg(feature = "transfer_non_native_fee")]
+    fn preserve_non_native_balance(
+        &mut self,
+        amounts_in: &[Variable],
+        amounts_out: &[Variable],
+    ) -> Result<Variable, PlonkError>;
+
     /// Prove the possession of an asset record and spend it,
     /// add the corresponding constraints.
     /// * `ro` - the variables for the asset record opening
@@ -87,6 +102,8 @@ impl TransactionGadgets for PlonkCircuit<BaseField> {
         amounts_in: &[Variable],
         amounts_out: &[Variable],
     ) -> Result<Variable, PlonkError> {
+        // FIXME(ZZ): This code is not sound.
+        // We need to constraint all inputs and outputs are non-negative.
         if amounts_in.is_empty() {
             return Err(PlonkError::CircuitError(InternalError(
                 "amounts_in is empty".to_string(),
@@ -132,6 +149,31 @@ impl TransactionGadgets for PlonkCircuit<BaseField> {
         self.mul_gate(same_asset, amount_diff, amount_diff)?;
         // enforce `same_asset` * `native_amount_diff` = `native_amount_diff`,
         self.mul_gate(same_asset, native_amount_diff, native_amount_diff)?;
+
+        Ok(total_amounts_in)
+    }
+
+    #[cfg(feature = "transfer_non_native_fee")]
+    fn preserve_non_native_balance(
+        &mut self,
+        amounts_in: &[Variable],
+        amounts_out: &[Variable],
+    ) -> Result<Variable, PlonkError> {
+        // FIXME(ZZ): This code is not sound.
+        // We need to constraint all inputs and outputs are non-negative.
+        if amounts_in.is_empty() {
+            return Err(PlonkError::CircuitError(InternalError(
+                "amounts_in is empty".to_string(),
+            )));
+        }
+        if amounts_out.is_empty() {
+            return Err(PlonkError::CircuitError(InternalError(
+                "amounts_out is empty".to_string(),
+            )));
+        }
+        let total_amounts_in = self.sum(&amounts_in)?;
+        let total_amounts_out = self.sum(&amounts_out)?;
+        self.equal_gate(total_amounts_in, total_amounts_out)?;
 
         Ok(total_amounts_in)
     }
@@ -212,6 +254,9 @@ mod tests {
         merkle_tree::AccMemberWitness,
     };
     use jf_utils::fr_to_fq;
+
+    #[cfg(feature = "transfer_non_native_fee")]
+    use rand::{Rng, RngCore};
 
     fn build_preserve_balance_circuit(
         native_asset: BaseField,
@@ -312,6 +357,75 @@ mod tests {
         let circuit =
             build_preserve_balance_circuit(native_asset, asset1, fee, &amounts_in, &amounts1_out)?; // 9+8+...+2 != 3+4+...+9
         assert!(circuit.check_circuit_satisfiability(&[]).is_err());
+
+        Ok(())
+    }
+
+    #[cfg(feature = "transfer_non_native_fee")]
+    fn build_non_native_preserve_balance_circuit(
+        amounts_in: &[BaseField],
+        amounts_out: &[BaseField],
+    ) -> Result<PlonkCircuit<BaseField>, PlonkError> {
+        let expected_transfer_amount = amounts_in.iter().fold(BaseField::zero(), |acc, &x| acc + x);
+        let mut circuit = PlonkCircuit::new_turbo_plonk();
+        let amounts_in: Vec<Variable> = amounts_in
+            .iter()
+            .map(|&val| circuit.create_variable(val))
+            .collect::<Result<Vec<_>, PlonkError>>()?;
+        let amounts_out: Vec<Variable> = amounts_out
+            .iter()
+            .map(|&val| circuit.create_variable(val))
+            .collect::<Result<Vec<_>, PlonkError>>()?;
+        let transfer_amount = circuit.preserve_non_native_balance(&amounts_in, &amounts_out)?;
+
+        assert_eq!(expected_transfer_amount, circuit.witness(transfer_amount)?);
+        Ok(circuit)
+    }
+
+    #[cfg(feature = "transfer_non_native_fee")]
+    fn sample_amounts(
+        rng: &mut impl RngCore,
+        num_inputs: usize,
+        num_outputs: usize,
+        is_sound: bool,
+    ) -> (Vec<BaseField>, Vec<BaseField>) {
+        let amounts_in: Vec<BaseField> = (0..num_inputs)
+            .map(|_| rng.gen_range(0..256).into())
+            .collect();
+        let mut amounts_out: Vec<BaseField> = (0..num_outputs - 1)
+            .map(|_| rng.gen_range(0..256).into())
+            .collect();
+        let total_in: BaseField = amounts_in.iter().sum();
+        let total_out: BaseField = amounts_out.iter().sum();
+
+        amounts_out.push(total_in - total_out);
+
+        if !is_sound {
+            amounts_out[0] = amounts_out[0] + BaseField::one(); // make it unsound
+        }
+
+        (amounts_in, amounts_out)
+    }
+
+    #[test]
+    #[cfg(feature = "transfer_non_native_fee")]
+    fn test_non_native_preserve_balance() -> Result<(), PlonkError> {
+        let rng = &mut test_rng();
+
+        for num_in in [1, 2, 4] {
+            for num_out in [1, 2, 4] {
+                for is_sound in [true, false] {
+                    let (amounts_in, amounts_out) = sample_amounts(rng, num_in, num_out, is_sound);
+                    let circuit =
+                        build_non_native_preserve_balance_circuit(&amounts_in, &amounts_out)?;
+                    if is_sound {
+                        assert!(circuit.check_circuit_satisfiability(&[]).is_ok());
+                    } else {
+                        assert!(circuit.check_circuit_satisfiability(&[]).is_err());
+                    }
+                }
+            }
+        }
 
         Ok(())
     }

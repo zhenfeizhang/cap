@@ -88,12 +88,27 @@ impl TransferCircuit {
             let not_dummy_record = circuit.logic_neg(is_dummy_record)?;
             circuit.logic_or_gate(not_dummy_record, is_zero_amount)?;
 
-            // The first input is with native asset code and is for txn fees.
-            if i == 0 {
-                circuit.equal_gate(input.ro.asset_code, pub_input.native_asset_code)?;
-                input.ro.policy.enforce_dummy_policy(&mut circuit)?;
-            } else {
-                // if asset type code is dummy, then policy must be dummy
+            #[cfg(not(feature = "transfer_non_native_fee"))]
+            {
+                // The first input is with native asset code and is for txn fees.
+                if i == 0 {
+                    circuit.equal_gate(input.ro.asset_code, pub_input.native_asset_code)?;
+                    input.ro.policy.enforce_dummy_policy(&mut circuit)?;
+                } else {
+                    // if asset type code is dummy, then policy must be dummy
+                    let is_dummy_policy = input.ro.policy.is_dummy_policy(&mut circuit)?;
+                    circuit.logic_or_gate(not_dummy_record, is_dummy_policy)?;
+                    // if asset type code is not dummy, then policy must be the transfers note
+                    // policy
+                    let is_equal_policy = input
+                        .ro
+                        .policy
+                        .check_equal_policy(&mut circuit, &witness.policy)?;
+                    circuit.logic_or_gate(is_dummy_record, is_equal_policy)?;
+                }
+            }
+            #[cfg(feature = "transfer_non_native_fee")]
+            {
                 let is_dummy_policy = input.ro.policy.is_dummy_policy(&mut circuit)?;
                 circuit.logic_or_gate(not_dummy_record, is_dummy_policy)?;
                 // if asset type code is not dummy, then policy must be the transfers note
@@ -132,15 +147,29 @@ impl TransferCircuit {
         {
             // The output is not frozen.
             circuit.constant_gate(output_ro.freeze_flag, BaseField::zero())?;
-            // The first output is with native asset code and is for txn fees
-            if i == 0 {
-                circuit.equal_gate(output_ro.asset_code, pub_input.native_asset_code)?;
-                output_ro.policy.enforce_dummy_policy(&mut circuit)?;
-            } else {
+
+            #[cfg(feature = "transfer_non_native_fee")]
+            {
+                // The first output is with non-native asset code and is for txn fees
                 circuit.equal_gate(output_ro.asset_code, witness.asset_code)?;
                 output_ro
                     .policy
                     .enforce_equal_policy(&mut circuit, &witness.policy)?;
+            }
+
+            #[cfg(not(feature = "transfer_non_native_fee"))]
+            {
+                // The first output is with native asset code and is for txn fees
+                // Disable this check so we can pay fees with non-native assets when `transfer_non_native_fee` feature is enabled
+                if i == 0 {
+                    circuit.equal_gate(output_ro.asset_code, pub_input.native_asset_code)?;
+                    output_ro.policy.enforce_dummy_policy(&mut circuit)?;
+                } else {
+                    circuit.equal_gate(output_ro.asset_code, witness.asset_code)?;
+                    output_ro
+                        .policy
+                        .enforce_equal_policy(&mut circuit, &witness.policy)?;
+                }
             }
 
             // commitment
@@ -167,6 +196,10 @@ impl TransferCircuit {
             .map(|ro| ro.amount)
             .collect();
 
+        #[cfg(feature = "transfer_non_native_fee")]
+        let transfer_amount = circuit.preserve_non_native_balance(&amounts_in, &amounts_out)?;
+
+        #[cfg(not(feature = "transfer_non_native_fee"))]
         let transfer_amount = circuit.preserve_balance(
             pub_input.native_asset_code,
             witness.asset_code,
@@ -311,6 +344,7 @@ impl TransferWitnessVar {
 #[derive(Debug)]
 pub(crate) struct TransferPubInputVar {
     pub(crate) root: Variable,
+    #[cfg(not(feature = "transfer_non_native_fee"))]
     pub(crate) native_asset_code: Variable,
     pub(crate) valid_until: Variable,
     pub(crate) fee: Variable,
@@ -326,6 +360,7 @@ impl TransferPubInputVar {
         pub_input: &TransferPublicInput,
     ) -> Result<Self, PlonkError> {
         let root = circuit.create_public_variable(pub_input.merkle_root.to_scalar())?;
+        #[cfg(not(feature = "transfer_non_native_fee"))]
         let native_asset_code = circuit.create_public_variable(pub_input.native_asset_code.0)?;
         let valid_until = circuit.create_public_variable(BaseField::from(pub_input.valid_until))?;
         let fee = circuit.create_public_variable(BaseField::from(pub_input.fee.0))?;
@@ -343,6 +378,7 @@ impl TransferPubInputVar {
         audit_memo.set_public(circuit)?;
         Ok(Self {
             root,
+            #[cfg(not(feature = "transfer_non_native_fee"))]
             native_asset_code,
             valid_until,
             fee,
@@ -407,12 +443,16 @@ mod tests {
     fn test_pub_input_to_scalars_order_consistency() {
         let rng = &mut ark_std::test_rng();
         let mut input_ros = vec![RecordOpening::rand_for_test(rng); 5];
-        input_ros[0].asset_def = AssetDefinition::native();
+        #[cfg(not(feature = "transfer_non_native_fee"))]
+        {
+            input_ros[0].asset_def = AssetDefinition::native();
+        }
         let output_ros = vec![RecordOpening::rand_for_test(rng); 4];
         let input_creds = vec![ExpirableCredential::dummy_unexpired().unwrap(); 5];
         let randomizer = ScalarField::rand(rng);
         let pub_input = TransferPublicInput {
             merkle_root: NodeValue::from_scalar(BaseField::from(10u8)),
+            #[cfg(not(feature = "transfer_non_native_fee"))]
             native_asset_code: AssetCode::native(),
             valid_until: 123u64,
             fee: Amount::from(8u64),
