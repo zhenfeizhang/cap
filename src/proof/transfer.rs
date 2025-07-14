@@ -319,8 +319,9 @@ pub(crate) struct InputSecret<'a, C: CapConfig> {
 pub struct TransferPublicInput<C: CapConfig> {
     /// record merkle tree root
     pub merkle_root: NodeValue<C::ScalarField>,
-    // /// native asset code
-    // pub native_asset_code: AssetCode<C>,
+    /// native asset code
+    #[cfg(not(feature = "transfer_non_native_fee"))]
+    pub native_asset_code: AssetCode<C>,
     /// expiry of credentials
     pub valid_until: u64,
     /// transaction fee to pay
@@ -429,7 +430,8 @@ impl<C: CapConfig> TransferPublicInput<C> {
 
         Ok(Self {
             merkle_root,
-            // native_asset_code,
+            #[cfg(not(feature = "transfer_non_native_fee"))]
+            native_asset_code,
             valid_until,
             fee,
             input_nullifiers,

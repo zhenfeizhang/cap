@@ -74,5 +74,7 @@ bls12_381 = ["ark-bls12-381", "ark-ed-on-bls12-381"]
 bls12_377 = ["ark-bls12-377", "ark-ed-on-bls12-377"]
 bn254 = ["ark-bn254", "ark-ed-on-bn254"]
 std = ["ark-std/std"]
+# enabling transfer with non-native fees
+transfer_non_native_fee = []
 # exposing apis for testing purpose
 test_apis = []

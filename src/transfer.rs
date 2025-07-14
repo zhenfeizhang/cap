@@ -471,7 +471,8 @@ impl<C: CapConfig> TransferNote<C> {
         // build public inputs
         Ok(TransferPublicInput {
             merkle_root,
-            // native_asset_code: AssetCode::native(),
+            #[cfg(not(feature = "transfer_non_native_fee"))]
+            native_asset_code: AssetCode::native(),
             valid_until: self.aux_info.valid_until,
             fee: self.aux_info.fee,
             input_nullifiers: self.inputs_nullifiers.clone(),
